@@ -1,107 +1,94 @@
 # utils/database.py
-import sqlite3
+import psycopg2
 import pandas as pd
-from pathlib import Path
 
-DB_PATH = Path("data/depenses.db")
+# --- Configuration Supabase ---
+DB_CONFIG = {
+    "host": "aws-1-eu-west-3.pooler.supabase.com",
+    "port": 5432,
+    "database": "postgres",
+    "user": "postgres.rjwmpufueodmnbvnllst",
+    "password": "Otaku1729#1729"  # 🔒 à remplacer par ton vrai mot de passe Supabase
+}
 
+def get_connection():
+    """Crée une connexion PostgreSQL vers Supabase."""
+    return psycopg2.connect(**DB_CONFIG)
+
+# --- Initialisation des tables ---
 def init_db():
-    """Initialise la base de données et les tables si elles n'existent pas, 
-    et ajoute les colonnes manquantes si besoin."""
-    DB_PATH.parent.mkdir(exist_ok=True)
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    """Crée les tables si elles n'existent pas encore."""
+    conn = get_connection()
+    cur = conn.cursor()
 
-    # --- Création de la table depenses si elle n'existe pas ---
-    c.execute("""
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS categories (
+            id SERIAL PRIMARY KEY,
+            nom TEXT UNIQUE
+        );
+    """)
+
+    cur.execute("""
         CREATE TABLE IF NOT EXISTS depenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            id SERIAL PRIMARY KEY,
             montant REAL,
-            date TEXT,
-            categorie TEXT,
+            date DATE,
+            categorie TEXT REFERENCES categories(nom),
             commentaire TEXT,
             type_depense TEXT
-        )
-    """)
-    conn.commit()
-
-    # --- Vérification des colonnes existantes ---
-    c.execute("PRAGMA table_info(depenses)")
-    existing_cols = [col[1] for col in c.fetchall()]
-
-    expected_cols = {
-        "montant": "REAL",
-        "date": "TEXT",
-        "categorie": "TEXT",
-        "commentaire": "TEXT",
-        "type_depense": "TEXT"
-    }
-
-    # --- Ajout automatique des colonnes manquantes ---
-    for col, col_type in expected_cols.items():
-        if col not in existing_cols:
-            print(f"⚙️ Ajout de la colonne manquante '{col}' ({col_type}) à la table depenses...")
-            c.execute(f"ALTER TABLE depenses ADD COLUMN {col} {col_type}")
-            conn.commit()
-
-    # --- Table des catégories ---
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS categories (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nom TEXT UNIQUE
-        )
+        );
     """)
 
-    # --- Insertion des catégories par défaut si vide ---
-    c.execute("SELECT COUNT(*) FROM categories")
-    if c.fetchone()[0] == 0:
+    # Insertion des catégories par défaut si vide
+    cur.execute("SELECT COUNT(*) FROM categories;")
+    if cur.fetchone()[0] == 0:
         categories_defaut = [
             ("Alimentation",), ("Logement",), ("Transport",),
             ("Loisirs",), ("Santé",), ("Autres",)
         ]
-        c.executemany("INSERT INTO categories (nom) VALUES (?)", categories_defaut)
-        conn.commit()
+        cur.executemany("INSERT INTO categories (nom) VALUES (%s)", categories_defaut)
 
+    conn.commit()
     conn.close()
 
 
 def add_depense(montant, date, categorie, commentaire, type_depense):
-    """Ajoute une dépense dans la base."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO depenses (montant, date, categorie, commentaire, type_depense) VALUES (?, ?, ?, ?, ?)",
-        (montant, date, categorie, commentaire, type_depense)
-    )
+    """Ajoute une dépense dans la base Supabase."""
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("""
+        INSERT INTO depenses (montant, date, categorie, commentaire, type_depense)
+        VALUES (%s, %s, %s, %s, %s);
+    """, (montant, date, categorie, commentaire, type_depense))
     conn.commit()
     conn.close()
 
 
 def load_depenses():
     """Charge toutes les dépenses sous forme de DataFrame pandas."""
-    conn = sqlite3.connect(DB_PATH)
-    df = pd.read_sql_query("SELECT * FROM depenses", conn)
+    conn = get_connection()
+    df = pd.read_sql_query("SELECT * FROM depenses ORDER BY date DESC;", conn)
     conn.close()
     return df
 
 
 def get_categories():
     """Retourne la liste des catégories existantes."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
-    c.execute("SELECT nom FROM categories ORDER BY nom")
-    categories = [row[0] for row in c.fetchall()]
+    conn = get_connection()
+    cur = conn.cursor()
+    cur.execute("SELECT nom FROM categories ORDER BY nom;")
+    categories = [r[0] for r in cur.fetchall()]
     conn.close()
     return categories
 
 
 def add_category(nouvelle_categorie):
-    """Ajoute une nouvelle catégorie si elle n'existe pas déjà."""
-    conn = sqlite3.connect(DB_PATH)
-    c = conn.cursor()
+    """Ajoute une catégorie si elle n'existe pas déjà."""
+    conn = get_connection()
+    cur = conn.cursor()
     try:
-        c.execute("INSERT INTO categories (nom) VALUES (?)", (nouvelle_categorie,))
+        cur.execute("INSERT INTO categories (nom) VALUES (%s);", (nouvelle_categorie,))
         conn.commit()
-    except sqlite3.IntegrityError:
-        pass  # ignore si la catégorie existe déjà
+    except psycopg2.errors.UniqueViolation:
+        conn.rollback()
     conn.close()
