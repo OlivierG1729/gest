@@ -1,6 +1,6 @@
-import psycopg2
+import psycopg
 
-conn = psycopg2.connect(
+conn = psycopg.connect(
     host="aws-1-eu-west-3.pooler.supabase.com",
     port=5432,
     database="postgres",
