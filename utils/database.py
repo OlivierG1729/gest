@@ -1,6 +1,10 @@
 # utils/database.py
-import psycopg2
+import psycopg
 import pandas as pd
+
+# Pour compatibilité avec l'ancien code psycopg2
+connect = psycopg.connect
+
 
 # --- Configuration Supabase ---
 DB_CONFIG = {
