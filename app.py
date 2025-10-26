@@ -26,7 +26,6 @@ st.set_page_config(
     layout="wide"
 )
 
-st.set_page_config(page_title="Budget Manager", layout="wide")
 st.title("💰 Gestionnaire de budget personnel")
 
 # --- Menu latéral ---
@@ -194,3 +193,6 @@ elif menu == "Afficher l'historique et les statistiques":
                     st.caption("Par type de dépense")
                     total_par_type = df_filtre.groupby("type_depense")["montant"].sum().sort_values(ascending=False)
                     st.bar_chart(total_par_type)
+
+
+# C:\Users\olivi\OneDrive\Desktop\Perso\Olivier\Applis\gest
