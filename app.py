@@ -16,6 +16,16 @@ from utils.database import (
 init_db()
 
 # --- Configuration Streamlit ---
+import streamlit as st
+
+
+# icone de l'application
+st.set_page_config(
+    page_title="Budget Manager",
+    page_icon="favicon.png",  
+    layout="wide"
+)
+
 st.set_page_config(page_title="Budget Manager", layout="wide")
 st.title("💰 Gestionnaire de budget personnel")
 
